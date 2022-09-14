@@ -100,12 +100,34 @@ steps:
     input:
       credentials: ${steps.read_kubeconfig.output["success"].credentials}
       namespace: default
+  platform_config:
+    plugin: quay.io/arcalog/kubernetes-platform-config-plugin:latest
+    #TODO -- PlatformParams apply here
+  server_job_config:
+    plugin: quay.io/arcalog/kubernetes-job-config-plugin:latest
+    #TODO -- SUTParams apply here, and we may need to feed metadata for matching clients and servers
+  client_job_config:
+    plugin: quay.io/arcalog/kubernetes-job-config-plugin:latest
+    #TODO -- SUTParams apply here, and we may need to feed metadata for matching clients and servers
+  metadata_collector:
+    if: ${GlobalParams.system_metrics_collection}
+    plugin: quay.io/arcalog/kubernetes-metrics-collector-plugin:latest
+    input:
+      credentials: ${steps.read_kubeconfig.output["success"].credentials}
+      namespace: default
+  metrics_collector:
+    if: ${GlobalParams.metadat_collection}
+    plugin: quay.io/arcalog/kubernetes-metadata-collector-plugin:latest
+    input:
+      credentials: ${steps.read_kubeconfig.output["success"].credentials}
+      namespace: default
   run_uperf:server:
     operator: parallel_foreach
     for_each: ${steps.kube_host_lookup.output["success"].host}
     steps:
       uperf_server:
         plugin: quay.io/arcalot/uperf-plugin:latest
+        job_config: ${steps.server_job_config.output["success"]}
         step: server
         deploy:
           node: ${steps.run_uperf_server.current_item}
@@ -117,6 +139,7 @@ steps:
     steps:
       uperf_client:
         plugin: quay.io/arcalot/uperf:latest
+        job_config: ${steps.client_job_config.output["success"]}
         step: client
         deploy:
           node: ${steps.run_uperf_client.current_item}
