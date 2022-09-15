@@ -12,15 +12,6 @@ input:
         es_server: 
           type:
             type_id: str
-        metadata_collection: 
-          type:
-            type_id: bool
-        metadata_targeted: 
-          type:
-            type_id: bool
-        system_metrics_collection: 
-          type:
-            type_id: bool
         uuid: 
           type:
             type_id: str
@@ -59,7 +50,7 @@ input:
           addresspool: 
             type:
               type_id: str
-            service_etp: 
+          service_etp: 
             type:
               type_id: str
         multus:
@@ -71,6 +62,7 @@ input:
       samples: int
       pairs: list[int]
     UperfWorkloadDefaults:
+      #These parameters map directly to the uperf (client) input schema
       objects:
         ProfileGroup:
           properties:
@@ -93,35 +85,42 @@ output: ${steps.run_uperf_client.output["success"]}
 
 
 steps:
+  #new plugin needed
   read_kubeconfig:
     plugin: quay.io/arcalot/read-kubeconfig-plugin:latest
+    #TODO -- How do we collect the kubeconfig from the GlobalParams?
+  #new plugin needed
   kube_host_lookup:
     plugin: quay.io/arcalot/kubernetes-host-lookup-plugin:latest
     input:
       credentials: ${steps.read_kubeconfig.output["success"].credentials}
       namespace: default
+  #new plugin needed
   platform_config:
-    plugin: quay.io/arcalog/kubernetes-platform-config-plugin:latest
+    plugin: quay.io/arcalot/kubernetes-platform-config-plugin:latest
     #TODO -- PlatformParams apply here
+  #new plugin needed
   server_job_config:
-    plugin: quay.io/arcalog/kubernetes-job-config-plugin:latest
+    plugin: quay.io/arcalot/kubernetes-job-config-plugin:latest
     #TODO -- SUTParams apply here, and we may need to feed metadata for matching clients and servers
+  #new plugin needed
   client_job_config:
-    plugin: quay.io/arcalog/kubernetes-job-config-plugin:latest
+    plugin: quay.io/arcalot/kubernetes-job-config-plugin:latest
     #TODO -- SUTParams apply here, and we may need to feed metadata for matching clients and servers
+  #new plugin needed
   metadata_collector:
-    if: ${GlobalParams.system_metrics_collection}
-    plugin: quay.io/arcalog/kubernetes-metrics-collector-plugin:latest
+    plugin: quay.io/arcalot/kubernetes-metrics-collector-plugin:latest
     input:
       credentials: ${steps.read_kubeconfig.output["success"].credentials}
       namespace: default
+  #new plugin needed
   metrics_collector:
-    if: ${GlobalParams.metadat_collection}
-    plugin: quay.io/arcalog/kubernetes-metadata-collector-plugin:latest
+    plugin: quay.io/arcalot/kubernetes-metadata-collector-plugin:latest
     input:
       credentials: ${steps.read_kubeconfig.output["success"].credentials}
       namespace: default
   run_uperf:server:
+    #engine feature "parallel foreach" needed
     operator: parallel_foreach
     for_each: ${steps.kube_host_lookup.output["success"].host}
     steps:
@@ -145,6 +144,15 @@ steps:
           node: ${steps.run_uperf_client.current_item}
         input:
           target: ${select_random{steps.host_lookup.output["success"].host}}
-
-
-
+  #new plugin needed
+  es_translator:
+    needs:
+      - steps.metadata_collector.output["success"]
+      - steps.metrics_collector.output["success"]
+      - steps.run_uperf_client.output["success"]
+    plugin: quay.io/arcalot/es-translator-plugin:latest
+  #new plugin needed
+  es_benchmark_wrapper_adapter:
+    needs:
+      - steps.es_translator.output["success"]
+    plugin: quay.io/arcalot/es-benchmark-wrapper-adapter-plugin:latest
