@@ -93,19 +93,52 @@ input:
         default: 2
     UperfWorkload:
       #These parameters map directly to the uperf (client) input schema
+      root: Profile
       objects:
+        Profile:
+          properties:
+            groups:
+              type:
+                items:
+                  id: ProfileGroup
+                  type_id: ref
+                type_id: list
         ProfileGroup:
           properties:
-            transactions: list
-            nthreads: list[int] #FIXME -- input schema is a single int
+            transactions:
+              type:
+                items:
+                  id: ProfileTransaction
+                  type_id: ref
+                type_id: list
+             nthreads: #TODO -- We need to loop over a list of threads
+              type:
+                type_id: int
         ProfileTransaction:
           properties:
-            flowops: list
+            flowops:
+              type:
+                items:
+                  #TODO
+                  type_id: one_of_string
+              type_id: list
             #Note: duration is "runtime" in the benchmark-operator CR
-            duration: string #FIXME -- is a string in the schema; should it be an int?
+            duration:
+              type:
+                type_id: str
+              default: 60s
         ConnectFlowOp:
           properties:
-            protocol: list[enum] #FIXME -- input schema is a single enum_string
+            protocol: #TODO -- We need to loop over a list of protocols
+              type:
+                type_id: enum
+            #TODO -- port and remotehost need to be set as part of the workflow steps when assigning a client to a server
+            port:
+              type:
+                type_id: int
+            remotehost:
+              type:
+                type_id: str
         test_types:  list[enum] #FIXME -- these are pseudonyms for flowop combinations
         sizes:  list[int] #FIXME -- this is a per-flowop param and they are single items per flowop
 
