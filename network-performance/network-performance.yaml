@@ -12,15 +12,35 @@ input:
         es_server: 
           type:
             type_id: str
+          default: https://search-perfscale-dev-chmf5l4sh66lvxbnadi4bznl3a.us-west-2.es.amazonaws.com:443
         uuid: 
           type:
             type_id: str
+        run_id: #TODO -- I'm not sure how we use this and uuid separately
         cluster_name: 
           type:
             type_id: str
-        prom_token: 
-          type:
-            type_id: str
+        system_metrics: #TODO -- This is dependent on how we implement the metrics plugin
+          prom_url:
+            type:
+              type_id: str
+            default: https://prometheus-k8s.openshift-monitoring.svc.cluster.local:9091
+          prom_token: 
+            type:
+              type_id: str
+          metrics_profile:
+            type:
+              type_id: enum
+            default: node-metrics.yml
+        metadata: #TODO -- This is dependent on how we implement the metadata plugin
+          serviceaccount:
+            type:
+              type_id: str
+            default: backpack-view
+          targeted:
+            type:
+              type_id: bool
+            default: false
     PlatformParams:
       #TODO
     SUTParams:
@@ -28,25 +48,30 @@ input:
         network_policy: 
           type:
             type_id: bool
-        multi_az: 
+          default: false
+        multi_az: #TODO -- Isn't this platform specific?
           type:
             type_id: bool
+          default: true
         hostnetwork: 
           type:
             type_id: bool
+          default: false
         serviceip: 
           type:
             type_id: bool
+          default: false
         test_timeout: 
           type:
             type_id: int
+          default: 7200
         run_id: 
           type:
             type_id: str
-        servicetype: 
+        servicetype: #TODO -- Whatis?
           type:
             type_id: str
-        metallb:
+        metallb: #TODO
           addresspool: 
             type:
               type_id: str
@@ -54,14 +79,19 @@ input:
             type:
               type_id: str
         multus:
-          enabled: 
-            type:
-              type_id: bool
+          type:
+            type_id: bool
+          default: false
     WorkloadGeometry:
-      #TODO
-      samples: int
-      pairs: list[int]
-    UperfWorkloadDefaults:
+      samples: #TODO -- Need to think about the loop control for this
+        type:
+          type_id: int
+        default: 3
+      pairs:
+        type:
+          type_id: int #TODO -- Existing automation only tests with either 1 or 2 pairs; no full-scale tests are done
+        default: 2
+    UperfWorkload:
       #These parameters map directly to the uperf (client) input schema
       objects:
         ProfileGroup:
@@ -78,7 +108,6 @@ input:
             protocol: list[enum] #FIXME -- input schema is a single enum_string
         test_types:  list[enum] #FIXME -- these are pseudonyms for flowop combinations
         sizes:  list[int] #FIXME -- this is a per-flowop param and they are single items per flowop
-    UperfWorkloads: list #TODO -- how do we accept a list of workloads with overrides for the above defaults?
 
 
 output: ${steps.run_uperf_client.output["success"]}
@@ -91,6 +120,7 @@ steps:
     #TODO -- How do we collect the kubeconfig from the GlobalParams?
   #new plugin needed
   kube_host_lookup:
+    #FIXME? -- A full host lookup at N scale has potential performance concerns
     plugin: quay.io/arcalot/kubernetes-host-lookup-plugin:latest
     input:
       credentials: ${steps.read_kubeconfig.output["success"].credentials}
@@ -122,6 +152,7 @@ steps:
   run_uperf:server:
     #engine feature "parallel foreach" needed
     operator: parallel_foreach
+    #FIXME -- Needs to be for each pair in pairs
     for_each: ${steps.kube_host_lookup.output["success"].host}
     steps:
       uperf_server:
@@ -134,6 +165,7 @@ steps:
     needs:
       - steps.run_uperf_server.output["success"]
     operator: parallel_foreach
+    #FIXME -- Needs to be for each pair in pairs
     for_each: ${steps.host_lookup.output["success"].host}
     steps:
       uperf_client:
