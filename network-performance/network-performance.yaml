@@ -175,7 +175,7 @@ input:
         sizes:  list[integer] #FIXME -- this is a per-flowop param and they are single items per flowop
 
 
-output: ${steps.run_uperf_client.output["success"]}
+output: $.steps.run_uperf_client.success.output
 
 
 steps:
@@ -184,57 +184,63 @@ steps:
     #TODO
   #new plugin needed
   read_kubeconfig:
+    id: read_kubeconfig
     plugin: quay.io/arcalot/read-kubeconfig-plugin:latest
     #TODO -- How do we collect the kubeconfig from the GlobalParams?
   #new plugin needed
   platform_config:
+    id: platform_config
     plugin: quay.io/arcalot/kubernetes-platform-config-plugin:latest
     #TODO -- PlatformParams apply here
   #new plugin needed
   server_job_config:
+    id: server_job_config
     plugin: quay.io/arcalot/kubernetes-job-config-plugin:latest
     #TODO -- SUTParams apply here, and we may need to feed metadata for matching clients and servers
   #new plugin needed
   client_job_config:
+    id: client_job_config
     plugin: quay.io/arcalot/kubernetes-job-config-plugin:latest
     #TODO -- SUTParams apply here, and we may need to feed metadata for matching clients and servers
   #new plugin needed
   metadata_collector:
+    id: metadata_collector
     plugin: quay.io/arcalot/kubernetes-metrics-collector-plugin:latest
     input:
-      credentials: ${steps.read_kubeconfig.output["success"].credentials}
+      credentials: $.steps.read_kubeconfig.success.credentials
       namespace: default
   run_uperf_server:
+    id: run_uperf_server
     #feature needed for anti-affinity w/ client pods
     steps:
       uperf_server:
         plugin: quay.io/arcalot/uperf-plugin:latest
-        job_config: ${steps.server_job_config.output["success"]}
+        job_config: $.steps.server_job_config.success.output
         step: server
-        deploy:
-          node: ${steps.run_uperf_server.current_item}
   run_uperf_client:
+    id: run_uperf_client
     #feature needed for anti-affinity w/ server pods
     needs:
-      - steps.run_uperf_server.output["success"]
+      - $.steps.run_uperf_server.success.output
     steps:
       uperf_client:
         plugin: quay.io/arcalot/uperf:latest
-        job_config: ${steps.client_job_config.output["success"]}
+        job_config: $.steps.client_job_config.success.output
         step: client
-        deploy:
-          node: ${steps.run_uperf_client.current_item}
         input:
-          target: ${select_random{steps.host_lookup.output["success"].host}}
+          #TODO -- How to tie a client to a server?
+          target: 
   #new plugin needed
   es_translator:
+    id: es_translator
     needs:
-      - steps.metadata_collector.output["success"]
-      - steps.metrics_collector.output["success"]
-      - steps.run_uperf_client.output["success"]
+      - $.steps.metadata_collector.success.output
+      - $.steps.metrics_collector.success.output
+      - $.steps.run_uperf_client.success.output
     plugin: quay.io/arcalot/es-translator-plugin:latest
   #new plugin needed
   es_benchmark_wrapper_adapter:
+    id: es_benchmark_wrapper_adapter
     needs:
-      - steps.es_translator.output["success"]
+      - $.steps.es_translator.success.output
     plugin: quay.io/arcalot/es-benchmark-wrapper-adapter-plugin:latest
