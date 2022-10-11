@@ -1,6 +1,44 @@
 input:
-  root: GlobalParams
+  root: RootObject
   objects:
+    RootObject:
+      id: RootObject
+      properties:
+        global_params:
+          required: true
+          type:
+            items:
+              id: GlobalParams
+              type_id: ref
+            type_id: list
+        platform_params:
+          required: true
+          type:
+            items:
+              id: PlatformParams
+              type_id: ref
+            type_id: list
+        sut_params:
+          required: true
+          type:
+            items:
+              id: SUTParams
+              type_id: ref
+            type_id: list
+        workload_geometry:
+          required: true
+          type:
+            items:
+              id: WorkloadGeometry
+              type_id: ref
+            type_id: list
+        uperf_workload:
+          required: true
+          type:
+            items:
+              id: UperfWorkload
+              type_id: ref
+            type_id: list
     GlobalParams:
       properties:
         platform: 
