@@ -10,6 +10,52 @@ input:
             name: Kubeconfig file contents
           type:
             type_id: string
+          required: true
+        uperf_protocol:
+          display:
+            description: The protol to use for the uperf workload
+            name: uperf protocol
+          type:
+            type_id: enum_string
+            values:
+              tcp:
+                name: TCP
+              udp:
+                name: UDP
+          default: '"tcp"'
+          required: true
+        uperf_nthreads:
+          display:
+            description: The number of threads for the uperf workload
+            name: uperf nthreads
+          type:
+            type_id: integer
+          default: 1
+          required: true
+        uperf_kbytes:
+          display:
+            description: The uperf workload packet size in KiB
+            name: uperf size
+          type:
+            type_id: integer
+          default: 64
+          required: true
+        uperf_runtime_seconds:
+          display:
+            description: The time in seconds to run the uperf workload
+            name: uperf runtime
+          type:
+            type_id: integer
+          default: 10
+          required: true
+        uperf_server_timeout_seconds:
+          display:
+            description: The time in seconds to run the uperf server
+            name: uperf server timeout
+          type:
+            type_id: integer
+          default: 20
+          required: true
         run_id:
           display:
             description: A unique run identifier for tracking groups of workflows triggered by external automation/CI
@@ -18,53 +64,17 @@ input:
             type_id: string
           default: "\"\""
           required: false
-        elasticsearch:
-          display:
-            description: The ElasticSearch service access parameters
-            name: ElasticSearch parameters
-          type:
-            type_id: list
-            items:
-              id: ElasticSearch
-              type_id: ref
-    ElasticSearch:
-      id: ElasticSearch
-      properties:
-        host: 
-          display:
-            description: The URL for the ElasticSearch host
-            name: ElasticSearch host URL
-          type:
-            type_id: string
-        username:
-          display:
-            description: The username for the ElasticSearch service
-            name: ElasticSearch username
-          type:
-            type_id: string
-        password:
-          display:
-            description: The password for the ElasticSearch service
-            name: ElasticSearch password
-          type:
-            type_id: string
-        index:
-          display:
-            description: The index for the ElasticSearch service
-            name: ElasticSearch index
-          type:
-            type_id: string
 steps:
   uuidgen:
     plugin: quay.io/arcalot/arcaflow-plugin-utilities:latest
     step: uuid
     input: {}
   kubeconfig:
-    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:latest
+    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:bugfix_b3ad4ad
     input:
       kubeconfig: !expr $.input.kubeconfig
   uperf_server:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
+    plugin: quay.io/arcalot/arcaflow-plugin-uperf:sdk-update_6fe86dd
     step: uperf_server
     deploy:
       type: kubernetes
@@ -78,8 +88,7 @@ steps:
           pluginContainer:
             imagePullPolicy: Always
     input:
-      run_duration: 60
-      port: 20000
+      run_duration: !expr $.input.uperf_server_timeout_seconds
   service:
     plugin: quay.io/arcalot/arcaflow-plugin-service:latest
     input:
@@ -104,7 +113,7 @@ steps:
           selector:
             arcaflow: uperf
   uperf_client:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
+    plugin: quay.io/arcalot/arcaflow-plugin-uperf:sdk-update_6fe86dd
     step: uperf
     deploy:
       type: kubernetes
@@ -114,23 +123,22 @@ steps:
           pluginContainer:
             imagePullPolicy: Always
     input:
-      port: 20000
       name: "netperf"
       groups:
-        - nthreads: 1
+        - nthreads: !expr $.input.uperf_nthreads
           transactions:
             - iterations: 1
               flowops:
                 - type: "accept"
                   remotehost: !expr $.steps.service.outputs.success.name
                   port: 20000
-                  protocol: "tcp"
-            - duration: "10s"
+                  protocol: !expr $.input.uperf_protocol
+            - duration: !expr $.input.uperf_runtime_seconds
               flowops:
                 - type: "write"
-                  size: 64
+                  size: !expr $.input.uperf_kbytes
                 - type: "read"
-                  size: 64
+                  size: !expr $.input.uperf_kbytes
             - iterations: 1
               flowops:
                 - type: "disconnect"
@@ -144,21 +152,9 @@ steps:
           pluginContainer:
             imagePullPolicy: Always
     input: {}
-  elasticsearch:
-    plugin: quay.io/arcalot/arcaflow-plugin-elasticsearch:latest
-    input:
-      url: !expr $.input.elasticsearch.host
-      username: !expr $.input.elasticsearch.username
-      password: !expr $.input.elasticsearch.password
-      index: !expr $.input.elasticsearch.index
-      data:
-        uuid: !expr $.steps.uuidgen.outputs.success.uuid
-        run_id: !expr $.input.run_id
-        uperf: !expr $.steps.uperf_client.outputs.success
-        metadata: !expr $.steps.metadata.outputs.success
 output:
   uuid: !expr $.steps.uuidgen.outputs.success.uuid
   run_id: !expr $.input.run_id
   uperf: !expr $.steps.uperf_client.outputs.success
   metadata: !expr $.steps.metadata.outputs.success
-  
+
