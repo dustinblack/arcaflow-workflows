@@ -157,4 +157,3 @@ output:
   run_id: !expr $.input.run_id
   uperf: !expr $.steps.uperf_client.outputs.success
   metadata: !expr $.steps.metadata.outputs.success
-

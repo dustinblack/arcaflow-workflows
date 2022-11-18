@@ -4,5 +4,6 @@ uperf_nthreads: 1
 uperf_kbytes: 64
 uperf_runtime_seconds: 20
 #Currently the server component requies a separate timeout value. This should be greater than the uperf_runtime_seconds.
-uperf_server_timeout_seconds: 30kubeconfig: |
+uperf_server_timeout_seconds: 30
+kubeconfig: |
   <your kubeconfig as an indented multi-line string>
