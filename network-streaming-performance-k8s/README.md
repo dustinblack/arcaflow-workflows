@@ -1,196 +1,89 @@
-# Network Performance Workflow
+# Network Streaming Performance Workflow for Kubernetes
+
+***NOTE: This is a work-in-progress workflow.***
 
 ## Workflow Description
 
-This workflow defines and end-to-end benchmark test for network performance, specifically using the [uperf](https://github.com/uperf/uperf) benchmark utility. This is targeted at Kubernetes environments and includes orchestration of necessary objects via the k8s APIs.
+This example workflow runs a network streaming bi-directional load using the
+[uperf](https://github.com/uperf/uperf) benchmark utility. The workload will
+run on a Kubernetes cluster using a provided `kubeconfig` object and will use a kubernetes service for communication between the uperf server and client pods.
 
-A single top-level schema provides all of the input constructs required to describe the benchmark workload to be run, as well global parameters that further define the environment within which the test is run and how other parallel data collections will be handled. Finally, all data and metadata from the sequence of tests are post-processed into an approproate document format and indexed into Elasticsearch.
+In addition to the uperf load, the workflow generates a UUID, which can be used as a unique key for the generated data, and runs a metadata collection using Ansible [gather facts](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/gather_facts_module.html).
 
-## Workflow Schema
-The workflow schema defines the input parameters expected from the workflow user. The workflow author can determine how these parameters are presented to the user, independent of the subordinate plugin schemas. 
+## Files
 
-In this example workflow, we require only three input parameters: `kubeconfig`, `run_id`, and an object for `elasticsearch` connectivity.
+- [`workflow.yaml`](workflow.yaml) -- Defines the workflow input schema, the plugins to run
+  and their data relationships, and the output to present to the user
+- [`input.yaml`](input.yaml) -- The input parameters that the user provides for running
+  the workflow
+- [`config.yaml`](config.yaml) -- Global config parameters that are passed to the Arcaflow
+  engine
+                     
+## Running the Workflow
 
-```yaml
-input:
-  root: RootObject
-  objects:
-    RootObject:
-      id: RootObject
-      properties:
-        kubeconfig:
-          display:
-            description: The complete kubeconfig file as a string
-            name: Kubeconfig file contents
-          type:
-            type_id: string
-        run_id:
-          display:
-            description: A unique run identifier for tracking groups of workflows triggered by external automation/CI
-            name: Run ID
-          type:
-            type_id: string
-          default: "\"\""
-          required: false
-        elasticsearch:
-          display:
-            description: The ElasticSearch service access parameters
-            name: ElasticSearch parameters
-          type:
-            type_id: list
-            items:
-              id: ElasticSearch
-              type_id: ref
-    ElasticSearch:
-      id: ElasticSearch
-      properties:
-        host: 
-          display:
-            description: The URL for the ElasticSearch host
-            name: ElasticSearch host URL
-          type:
-            type_id: string
-        username:
-          display:
-            description: The username for the ElasticSearch service
-            name: ElasticSearch username
-          type:
-            type_id: string
-        password:
-          display:
-            description: The password for the ElasticSearch service
-            name: ElasticSearch password
-          type:
-            type_id: string
-        index:
-          display:
-            description: The index for the ElasticSearch service
-            name: ElasticSearch index
-          type:
-            type_id: string
+You will need a Golang runtime and Docker to run the containers (Podman can
+be used with the [system service](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html)
+enabled for socket connections, which are required by the Arcaflow engine to
+communicate with the plugins).
 
+Clone the engine:
+```
+$ git clone git@github.com:arcalot/arcaflow-engine.git
 ```
 
-## Workflow Definition
-The workflow definition provides the series of steps to be performed by plugins or engine functions. You can think of each plugin step as being in a "star pattern" with the engine at the center. The engine passes input to the plugin's input API as defined by it's schema, and it receives output from the plugin's output API. The engine is responsible for passing the output of one plugin to the input of another in order to faciliate the chain of steps as defined in the workflow.
+Clone this workflows repo, and set this directory to your workflow working directory (adjust as needed):
+```
+$ git clone https://github.com/arcalot/arcaflow-workflows.git
+$ export WFPATH=$(pwd)/arcaflow-workflows/network-streaming-performance-k8s
+```
+ 
+Run the workflow:
+```
+$ cd arcaflow-engine
+$ go run cmd/arcaflow/main.go -input ${WFPATH}/input-example.yaml \
+-config ${WFPATH}/config.yaml -context ${WFPATH}
+```
 
-Relationships between the workflow schema, the engine, and the individual plugins can be managed with an expression language based on [Jsonnet](https://jsonnet.org/). We can (among other things):
+## Workflow Diagram
+This diagram shows the complete end-to-end workflow logic.
 
-1. Pass the parameters provided by the user to the workflow schema through to specific plugins
-    - **Example:** The `kubeconfig` plugin receives the kubeconfig as a string from the workflow input.
-2. Pass the output of one plugin to the configuration the engine will use to deploy another plugin
-    - **Example:** The output of the `kubeconfig` plugin (a set of kubernetes authentication credentials) is used as input to the deploy configs of the plugins that will run in kubernetes.
-3. Pass the output of one plugin to the input of another plugin
-    - **Example:** The outputs of the `uuidgen`, `uperf_client`, and `metadata` plugins are passed to the `elasticsearch` plugin as well as to the final workflow `output`.
+```mermaid
+flowchart LR
+subgraph input
+input.run_id
+input.uperf_kbytes
+input.kubeconfig
+input.uperf_nthreads
+input.uperf_runtime_seconds
+input.uperf_protocol
+input.uperf_server_timeout_seconds
+end
+input.run_id-->output
+steps.metadata.outputs.success-->output
+steps.kubeconfig.outputs.success-->steps.uperf_client
+steps.kubeconfig.outputs.success-->steps.metadata
+steps.kubeconfig.outputs.success-->steps.uperf_server
+steps.kubeconfig.outputs.success-->steps.service
+steps.uuidgen-->steps.uuidgen.outputs.success
+steps.uuidgen-->steps.uuidgen.outputs.error
+input.uperf_kbytes-->steps.uperf_client
+input.kubeconfig-->steps.kubeconfig
+steps.metadata-->steps.metadata.outputs.success
+steps.metadata-->steps.metadata.outputs.error
+steps.service-->steps.service.outputs.error
+steps.service-->steps.service.outputs.success
+steps.uperf_client-->steps.uperf_client.outputs.success
+steps.uperf_client-->steps.uperf_client.outputs.error
+input.uperf_nthreads-->steps.uperf_client
+input.uperf_runtime_seconds-->steps.uperf_client
+input.uperf_protocol-->steps.uperf_client
+steps.uperf_client.outputs.success-->output
+steps.kubeconfig-->steps.kubeconfig.outputs.error
+steps.kubeconfig-->steps.kubeconfig.outputs.success
+steps.uperf_server-->steps.uperf_server.outputs.success
+steps.uperf_server-->steps.uperf_server.outputs.error
+steps.service.outputs.success-->steps.uperf_client
+input.uperf_server_timeout_seconds-->steps.uperf_server
+steps.uuidgen.outputs.success-->output
 
-Note that all plugins have their own schemas and sets of input requirements. Within the workflow, the author can determine how values will be passed to the plugins. You can choose to expose those parameters as part of the workflow schema to the user, or you can set or pass by variable values directly within the workflow itself, depending on your needs and use case.
-
-```yaml
-steps:
-  uuidgen:
-    plugin: quay.io/arcalot/arcaflow-plugin-utilities:latest
-    step: uuid
-    input: {}
-  kubeconfig:
-    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:latest
-    input:
-      kubeconfig: !expr $.input.kubeconfig
-  uperf_server:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
-    step: uperf_server
-    deploy:
-      type: kubernetes
-      connection: !expr $.steps.kubeconfig.outputs.success.connection
-      pod:
-        metadata:
-          namespace: default
-          labels:
-            arcaflow: uperf
-        spec:
-          pluginContainer:
-            imagePullPolicy: Always
-    input:
-      run_duration: 60
-      port: 20000
-  service:
-    plugin: quay.io/arcalot/arcaflow-plugin-service:latest
-    input:
-      connection: !expr $.steps.kubeconfig.outputs.success.connection
-      service:
-        metadata:
-          namespace: default
-        spec:
-          ports:
-           - name: control
-             port: 20000
-             protocol: TCP
-           - name: controludp
-             port: 20000
-             protocol: UDP
-           - name: workload
-             port: 30000
-             protocol: TCP
-           - name: workloadudp
-             port: 30000
-             protocol: UDP
-          selector:
-            arcaflow: uperf
-  uperf_client:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
-    step: uperf
-    deploy:
-      type: kubernetes
-      connection: !expr $.steps.kubeconfig.outputs.success.connection
-      pod:
-        spec:
-          pluginContainer:
-            imagePullPolicy: Always
-    input:
-      port: 20000
-      name: "netperf"
-      groups:
-        - nthreads: 1
-          transactions:
-            - iterations: 1
-              flowops:
-                - type: "accept"
-                  remotehost: !expr $.steps.service.outputs.success.name
-                  port: 20000
-                  protocol: "tcp"
-            - duration: "10s"
-              flowops:
-                - type: "write"
-                  size: 64
-                - type: "read"
-                  size: 64
-            - iterations: 1
-              flowops:
-                - type: "disconnect"
-  metadata:
-    plugin: quay.io/arcalot/arcaflow-plugin-metadata:latest
-    deploy:
-      type: kubernetes
-      connection: !expr $.steps.kubeconfig.outputs.success.connection
-      pod:
-        spec:
-          pluginContainer:
-            imagePullPolicy: Always
-    input: {}
-  elasticsearch:
-    plugin: quay.io/arcalot/arcaflow-plugin-elasticsearch:latest
-    input:
-      url: !expr $.input.elasticsearch.host
-      username: !expr $.input.elasticsearch.username
-      password: !expr $.input.elasticsearch.password
-      index: !expr $.input.elasticsearch.index
-      data:
-        uuid: !expr $.steps.uuidgen.outputs.success.uuid
-        run_id: !expr $.input.run_id
-        uperf: !expr $.steps.uperf_client.outputs.success
-        metadata: !expr $.steps.metadata.outputs.success
-output:
-  uuid: !expr $.steps.uuidgen.outputs.success.uuid
-  run_id: !expr $.input.run_id
-  uperf: !expr $.steps.uperf_client.outputs.success
-  metadata: !expr $.steps.metadata.outputs.success
 ```
