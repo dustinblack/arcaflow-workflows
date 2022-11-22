@@ -70,11 +70,11 @@ steps:
     step: uuid
     input: {}
   kubeconfig:
-    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:bugfix_b3ad4ad
+    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:latest
     input:
       kubeconfig: !expr $.input.kubeconfig
   uperf_server:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:sdk-update_6fe86dd
+    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
     step: uperf_server
     deploy:
       type: kubernetes
@@ -83,7 +83,7 @@ steps:
         metadata:
           namespace: default
           labels:
-            arcaflow: uperf
+            arcaflow: uperf-server
         spec:
           pluginContainer:
             imagePullPolicy: Always
@@ -111,14 +111,18 @@ steps:
              port: 30000
              protocol: UDP
           selector:
-            arcaflow: uperf
+            arcaflow: uperf-server
   uperf_client:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:sdk-update_6fe86dd
+    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
     step: uperf
     deploy:
       type: kubernetes
       connection: !expr $.steps.kubeconfig.outputs.success.connection
       pod:
+        metadata:
+          namespace: default
+          labels:
+            arcaflow: uperf-client
         spec:
           pluginContainer:
             imagePullPolicy: Always
@@ -148,6 +152,10 @@ steps:
       type: kubernetes
       connection: !expr $.steps.kubeconfig.outputs.success.connection
       pod:
+        metadata:
+          namespace: default
+          labels:
+            arcaflow: metadata
         spec:
           pluginContainer:
             imagePullPolicy: Always
