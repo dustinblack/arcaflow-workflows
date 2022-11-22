@@ -97,7 +97,7 @@ steps:
           pluginContainer:
             imagePullPolicy: Always
   uperf_server:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
+    plugin: quay.io/arcalot/arcaflow-plugin-uperf:sdk-update_6fe86dd
     step: uperf_server
     deploy:
       type: kubernetes
@@ -136,7 +136,7 @@ steps:
           selector:
             arcaflow: uperf-server
   uperf_client:
-    plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
+    plugin: quay.io/arcalot/arcaflow-plugin-uperf:sdk-update_6fe86dd
     step: uperf
     deploy:
       type: kubernetes
