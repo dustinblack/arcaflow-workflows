@@ -4,11 +4,11 @@
 
 ## Workflow Description
 
-This example workflow runs a network streaming bi-directional load using the
+This example workflow runs a network streaming one-directional workload using the
 [uperf](https://github.com/uperf/uperf) benchmark utility. The workload will
 run on a Kubernetes cluster using a provided `kubeconfig` object and will use a kubernetes service for communication between the uperf server and client pods.
 
-In addition to the uperf load, the workflow generates a UUID, which can be used as a unique key for the generated data, and runs a metadata collection using Ansible [gather facts](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/gather_facts_module.html).
+In addition to the uperf workload, the workflow generates a UUID, which can be used as a unique key for the generated data, collects system metrics with [Performance Co-pilot](https://pcp.io/), and collects system metadata using Ansible [gather facts](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/gather_facts_module.html).
 
 ## Files
 

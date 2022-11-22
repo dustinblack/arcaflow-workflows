@@ -64,6 +64,12 @@ input:
             type_id: string
           default: "\"\""
           required: false
+        pmlogger_interval:
+          display:
+            description: The logger collection interval for PCP pmlogger
+            name: PCP pmlogger collection interval
+          type:
+            type_id: integer
 steps:
   uuidgen:
     plugin: quay.io/arcalot/arcaflow-plugin-utilities:latest
@@ -73,6 +79,23 @@ steps:
     plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:latest
     input:
       kubeconfig: !expr $.input.kubeconfig
+  pcp:
+    plugin: quay.io/dustinblack/arcaflow-plugin-pcp-test:latest
+    step: start-pcp
+    input:
+      pmlogger_interval: !expr $.input.pmlogger_interval
+      run_duration: !expr $.input.uperf_server_timeout_seconds
+    deploy:
+      type: kubernetes
+      connection: !expr $.steps.kubeconfig.outputs.success.connection
+      pod:
+        metadata:
+          namespace: default
+          labels:
+            arcaflow: pcp
+        spec:
+          pluginContainer:
+            imagePullPolicy: Always
   uperf_server:
     plugin: quay.io/arcalot/arcaflow-plugin-uperf:latest
     step: uperf_server
@@ -165,3 +188,4 @@ output:
   run_id: !expr $.input.run_id
   uperf: !expr $.steps.uperf_client.outputs.success
   metadata: !expr $.steps.metadata.outputs.success
+  pcp: !expr $.steps.pcp.outputs.success
